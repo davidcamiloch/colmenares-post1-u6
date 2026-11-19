@@ -88,4 +88,17 @@ inicio:
     LOOP .bucle_fact
     ; Al terminar: AX = 1 * 2 * 3 * 4 * 5 = 120 (0078h), DX = 0
 
+; -- BLOQUE 5: Rotacion, ROL/ROR frente a SHL/SHR ----------------------------
+    MOV  al, 81h          ; AL = 1000 0001b: bits 7 y 0 en 1
+    MOV  bl, al
+    SHL  bl, 1            ; BL = 02h; CF = 1 (el bit 7 se pierde del registro)
+    MOV  cl, al
+    ROL  cl, 1            ; CL = 03h; CF = 1 (el bit 7 reaparece como bit 0)
+    MOV  dl, al
+    SHR  dl, 1            ; DL = 40h; CF = 1 (el bit 0 se pierde del registro)
+    MOV  bh, al
+    ROR  bh, 1            ; BH = C0h; CF = 1 (el bit 0 reaparece como bit 7)
+    MOV  al, 0A5h         ; AL = 1010 0101b
+    ROL  al, 4            ; AL = 5Ah: nibbles intercambiados
+
     INT  20h              ; retornar a DOS
