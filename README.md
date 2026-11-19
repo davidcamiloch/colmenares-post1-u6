@@ -52,3 +52,62 @@ SHL y SHR son las instrucciones correctas para aritmética. Desplazar un bit a l
 
 LOOP es más compacta y más legible. Codifica en 2 bytes (E2 desplazamiento) lo que DEC/JNZ expresa con 3 bytes (49 para `DEC cx` y 75 desplazamiento para `JNZ`), y el lector entiende de inmediato que CX es el contador. Sin embargo el número de instrucciones del código fuente no indica cuántos ciclos tarda el procesador. Cada instrucción tiene su propio costo de decodificación y de ejecución; en los procesadores Intel modernos LOOP se implementa con varias micro-operaciones mientras que DEC y JNZ son simples y además pueden fusionarse en una sola micro-operación. Por eso una instrucción puede costar más que dos. En el bucle de 5 iteraciones del bloque 4 la diferencia no se percibe; son unos pocos ciclos en un programa que tarda microsegundos. La respuesta cambia si el bucle se ejecuta millones de veces dentro de un programa mayor. Allí la diferencia por iteración se multiplica por el número de vueltas y DEC/JNZ es la opción razonable para la ruta crítica. La decisión es mantener LOOP en este laboratorio por claridad y usar DEC/JNZ cuando el perfilado señale el bucle como crítico.
 
+## Parte 2: Modos de direccionamiento
+
+Los datos ocupan 0102h a 0135h: `array` en 0102h (0A00 1400 1E00 2800 3200 en little-endian); `nota1` en 010Ch (5500h); `nota2` en 010Eh (4900h); `promedio` en 0110h; `var_x` en 0112h; `tabla_hex` en 0114h y `matriz` en 0124h.
+
+| Modo | Dirección efectiva | Instrucción NASM | Valor observado |
+|------|--------------------|------------------|-----------------|
+| Inmediato | No hay; el dato viaja en la instrucción | `MOV ax, 100` | AX = 0064h (B8 64 00) |
+| Directo | Desplazamiento fijo | `MOV ax, [var_x]` | AX = FFFFh, leída de 0112h |
+| Indirecto por registro | SI | `MOV ax, [si]` con SI = 010Ch | AX = 0055h (85) |
+| Indexado | BX + SI | `MOV ax, [bx + si]` con BX = 0102h, SI = 4 | AX = 001Eh (30) |
+| Base + desplazamiento | BX + 4 | `MOV dx, [bx + 4]` con BX = 010Ch | DX = 004Fh (79) |
+| Indirecto con BP | SS:BP − 4 | `ADD ax, [bp - 4]` | AX = 015Dh (349) |
+| Matriz 2D | BX + SI con SI = fila × 6 + columna × 2 | `MOV dx, [bx + si]` con SI = 000Ah | DX = 0006h |
+
+Traza del modo indirecto:
+
+| Instrucción | Registro modificado | Valor resultante |
+|-------------|---------------------|------------------|
+| `MOV si, nota1` | SI | 010Ch |
+| `MOV ax, [si]` | AX | 0055h |
+| `MOV si, nota2` | SI | 010Eh |
+| `MOV bx, [si]` | BX | 0049h |
+| `ADD ax, bx` | AX | 009Eh (158) |
+| `SHR ax, 1` | AX | 004Fh (79) |
+| `MOV [si], ax` con SI = 0110h | mem[0110h] | 4F 00 |
+
+El bucle indexado deja AX = 0096h (150). El commit "feat: recorrido inverso del array" agrega un segundo bucle que arranca con SI = 8 y resta 2 en cada vuelta; también termina con AX = 0096h.
+
+En el marco de pila SP baja 4 bytes con `SUB sp, 4`; el volcado de SS:BP−4 muestra FA 00 63 00 (250 y 99 en little-endian) y BP recupera su valor original tras `MOV sp, bp` y `POP bp`.
+
+### Decisión técnica 3: modo directo frente a indexado para una posición fija
+
+matriz[1][2] tiene una posición conocida al ensamblar: 0124h + 1 × 6 + 2 × 2 = 012Eh. El modo directo la resuelve con una sola instrucción, `MOV dx, [matriz + 10]`, cuya dirección efectiva viaja en el código y no requiere cálculo en tiempo de ejecución. El bloque indexado del paso 7 paga antes de leer el dato un MUL, dos SHL, un ADD y tres MOV adicionales; además MUL es una de las instrucciones más lentas del 8086 y destruye DX. Para un elemento fijo ese trabajo es puro costo. El indexado se vuelve indispensable cuando la fila o la columna solo se conocen en tiempo de ejecución, por ejemplo dentro de un bucle que recorre la matriz o cuando el índice proviene de una entrada del usuario. Recorrer las 9 posiciones con 9 etiquetas directas sería impráctico: el código crecería con el tamaño de la matriz, cualquier cambio de dimensiones obligaría a reescribirlo y no podría expresarse como bucle. Un solo bucle indexado que avance SI de 2 en 2 recorre los 18 bytes con el mismo código para cualquier tamaño. La regla es usar el directo para lo fijo y el indexado para lo que depende de una variable.
+
+### Decisión técnica 4: BP frente a BX/SI
+
+La arquitectura x86 asigna a BP el segmento de pila SS por defecto y a BX, SI y DI el segmento de datos DS. La convención existe porque BP se diseñó como puntero de marco: parámetros y variables locales viven en la pila y deben alcanzarse con desplazamientos fijos desde BP aunque SP cambie. BX/SI/DI recorren estructuras en el segmento de datos. En el .COM de este laboratorio CS = DS = ES = SS, así que `[bp - 2]` y `[bx - 2]` apuntan al mismo segmento y el resultado observable es idéntico. En un .EXE con segmentos separados DS ≠ SS. Si el código asumiera que `[bp + 4]` lee el mismo segmento que `[bx + 4]`, leería la pila en lugar de los datos o escribiría sobre ella; el error no produce ninguna excepción en modo real y aparece como datos corruptos o un retorno a una dirección basura. Para forzar a BP a usar DS se escribe un prefijo de sobrescritura de segmento, `mov ax, [ds:bp + 2]`, que NASM codifica con el byte 3Eh. Tiene sentido cuando BP se usa como puntero general a una estructura de datos en DS, por ejemplo en una rutina que se quedó sin registros base libres. La regla es reservar BP para el marco de pila y declarar el segmento explícitamente cuando se use para otra cosa.
+
+## Capturas
+
+| Captura | Contenido |
+|---------|-----------|
+| `capturas/p1-cp1-compilacion.png` | Ensamblado sin errores de lab6_instrucciones.asm |
+| `capturas/p1-cp2-flags.png` | Traza en DEBUG de ADD, SUB, AND, TEST y CMP con sus banderas |
+| `capturas/p1-cp2-ax15.png` | AX = 000F al terminar el bucle de suma |
+| `capturas/p1-cp3-factorial.png` | AX = 0078 al terminar la variante factorial |
+| `capturas/p1-cp4-rotacion.png` | BL = 02, CL = 03, DL = 40, BH = C0 y AL = 5A |
+| `capturas/p2-cp1-dump.png` | `D DS:100` con el arreglo y las notas |
+| `capturas/p2-cp2-indirecto.png` | Traza del modo indirecto |
+| `capturas/p2-cp3-indexado.png` | AX = 0096 en los bucles directo e inverso |
+| `capturas/p2-cp4-marco-bp.png` | SP, BP y volcado de SS:BP−4 |
+| `capturas/p2-cp5-matriz.png` | Volcado de la matriz y DX = 0006 |
+| `capturas/p2-cp5-si.png` | SI = 000A antes de leer matriz[1][2] |
+
+## Referencias
+
+- NASM Development Team. (s.f.). *NASM — The Netwide Assembler: documentación*. https://www.nasm.us/doc/
+- Cloutier, F. (s.f.). *x86 and amd64 instruction reference*. https://www.felixcloutier.com/x86/
+- Fog, A. (2026). *Instruction tables* y *The microarchitecture of Intel, AMD and VIA CPUs*. https://www.agner.org/optimize/
