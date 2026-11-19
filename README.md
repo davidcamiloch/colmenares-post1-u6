@@ -6,15 +6,17 @@ El repositorio reúne dos programas .COM en NASM para DOSBox. `lab6_instruccione
 
 ## Entorno
 
-- DOSBox 0.74-3 con la carpeta del laboratorio montada como C:.
+- DOSBox 0.74-3 con la carpeta del laboratorio montada como unidad D:.
 - NASM 3.02 para DOS con CWSDPMI como servidor DPMI (`cwsdpmi -p` antes de ensamblar).
 - DEBUG 2.51 (clon libre de DEBUG.COM, proyecto DOS-debug de Baron-von-Riedesel), porque DOSBox 0.74 no incluye DEBUG.
 
 ```
-C:\> nasm -f bin lab6_instrucciones.asm -o lab6_instrucciones.com
-C:\> nasm -f bin lab6_modos.asm -o lab6_modos.com
-C:\> debug lab6_instrucciones.com
+D:\> nasm -f bin lab6_i~1.asm -o instr.com
+D:\> nasm -f bin lab6_m~1.asm -o modos.com
+D:\> debug instr.com
 ```
+
+DOS solo admite nombres 8.3, así que DOSBox muestra `lab6_instrucciones.asm` como `LAB6_I~1.ASM` y `lab6_modos.asm` como `LAB6_M~1.ASM`. Los ejecutables se generaron como `INSTR.COM` (173 bytes) y `MODOS.COM` (208 bytes) y se guardan en el repositorio con el nombre largo de su fuente; el contenido es idéntico.
 
 ## Estructura
 
@@ -22,6 +24,8 @@ C:\> debug lab6_instrucciones.com
 colmenares-post1-u6/
 ├── lab6_instrucciones.asm / .com   Parte 1
 ├── lab6_modos.asm / .com           Parte 2
+├── COMPILA.BAT                     ensamblado de ambos programas
+├── dosbox_lab.conf                 configuración de DOSBox
 ├── capturas/                       evidencia de DEBUG en DOSBox
 └── README.md
 ```
@@ -89,6 +93,16 @@ matriz[1][2] tiene una posición conocida al ensamblar: 0124h + 1 × 6 + 2 × 2 
 ### Decisión técnica 4: BP frente a BX/SI
 
 La arquitectura x86 asigna a BP el segmento de pila SS por defecto y a BX, SI y DI el segmento de datos DS. La convención existe porque BP se diseñó como puntero de marco: parámetros y variables locales viven en la pila y deben alcanzarse con desplazamientos fijos desde BP aunque SP cambie. BX/SI/DI recorren estructuras en el segmento de datos. En el .COM de este laboratorio CS = DS = ES = SS, así que `[bp - 2]` y `[bx - 2]` apuntan al mismo segmento y el resultado observable es idéntico. En un .EXE con segmentos separados DS ≠ SS. Si el código asumiera que `[bp + 4]` lee el mismo segmento que `[bx + 4]`, leería la pila en lugar de los datos o escribiría sobre ella; el error no produce ninguna excepción en modo real y aparece como datos corruptos o un retorno a una dirección basura. Para forzar a BP a usar DS se escribe un prefijo de sobrescritura de segmento, `mov ax, [ds:bp + 2]`, que NASM codifica con el byte 3Eh. Tiene sentido cuando BP se usa como puntero general a una estructura de datos en DS, por ejemplo en una rutina que se quedó sin registros base libres. La regla es reservar BP para el marco de pila y declarar el segmento explícitamente cuando se use para otra cosa.
+
+## Desviaciones respecto a la guía
+
+| Punto de la guía | Lo observado en DEBUG | Tratamiento |
+|------------------|-----------------------|-------------|
+| Bloque 2: la resta 12 − 45 solo activa SF | `SUB` deja AX = FFDFh con NG y también CY, porque la resta exige préstamo | Se documentan ambas banderas en la tabla de la Parte 1 |
+| Bloque 2: el comentario de `MUL bl` dice que DX recibe la parte alta | `MUL` de 8 bits deja el producto completo en AX (0046h) y DX no cambia | Se conserva el código; el comentario corresponde a la versión de 16 bits |
+| Comandos de ensamblado con nombres largos | DOS solo admite nombres 8.3; DOSBox muestra `LAB6_I~1.ASM` y `LAB6_M~1.ASM` | `COMPILA.BAT` usa los nombres cortos y los .COM se suben con el nombre largo de su fuente |
+| DEBUG disponible en DOSBox | DOSBox 0.74-3 no incluye DEBUG.COM | Se usa DEBUG 2.51 del proyecto DOS-debug con la misma sintaxis de comandos |
+| Checkpoint 3: modificar el bucle de suma reemplazando ADD por MUL | Reemplazarlo eliminaba la evidencia de AX = 15 del checkpoint 2 | El factorial se agrega como segundo bucle y la suma se conserva |
 
 ## Capturas
 
