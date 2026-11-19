@@ -11,6 +11,9 @@ promedio  dw  0
 var_x     dw  0FFFFh                ; variable simple para el modo directo
 tabla_hex db  30h,31h,32h,33h,34h,35h,36h,37h
           db  38h,39h,41h,42h,43h,44h,45h,46h
+matriz    dw  1, 2, 3               ; matriz de 3 x 3 enteros de 16 bits
+          dw  4, 5, 6
+          dw  7, 8, 9
 
 inicio:
 ; -- MODO 1: INMEDIATO: el operando viaja dentro de la instruccion -----------
@@ -65,5 +68,28 @@ inicio:
     MOV  ax, [bx]         ; AX = nota1 = 85
     MOV  cx, [bx + 2]     ; CX = nota2 = 73
     MOV  dx, [bx + 4]     ; DX = promedio = 79
+
+; -- MODO 3b: INDIRECTO CON BP: variables locales en un marco de pila --------
+    PUSH bp               ; preservar BP
+    MOV  bp, sp           ; BP = SP: base del marco
+    SUB  sp, 4            ; reservar 2 palabras locales
+    MOV  word [bp - 2], 99    ; local_1 = 99 (0063h)
+    MOV  word [bp - 4], 250   ; local_2 = 250 (00FAh)
+    MOV  ax, [bp - 2]     ; AX = 99
+    ADD  ax, [bp - 4]     ; AX = 349 (015Dh)
+    MOV  sp, bp           ; liberar las locales
+    POP  bp               ; restaurar BP
+
+; -- ACCESO A MATRIZ: doble indexacion (fila, columna) -----------------------
+    MOV  ax, 1            ; fila = 1
+    MOV  bx, 3            ; ancho de fila = 3 elementos
+    MUL  bx               ; AX = 3 elementos
+    SHL  ax, 1            ; AX = 6 bytes
+    MOV  si, ax
+    MOV  cx, 2            ; columna = 2
+    SHL  cx, 1            ; CX = 4 bytes
+    ADD  si, cx           ; SI = 10 (000Ah)
+    MOV  bx, matriz
+    MOV  dx, [bx + si]    ; DX = matriz[1][2] = 6
 
     INT  20h              ; retornar a DOS
