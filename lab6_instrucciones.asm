@@ -41,4 +41,41 @@ inicio:
     MOV  bl, 7            ; BL = 7
     DIV  bl               ; AL = 14 (cociente), AH = 2 (resto): 100 = 7 * 14 + 2
 
+; -- BLOQUE 3: Operaciones logicas -------------------------------------------
+    MOV  al, 0B7h         ; AL = 1011 0111b
+    AND  al, [mascara]    ; AL = B7h AND 0Fh = 07h (conserva los 4 bits bajos)
+    MOV  al, 0B7h         ; restaurar AL
+    OR   al, 0F0h         ; AL = B7h OR F0h = F7h (activa los 4 bits altos)
+    MOV  al, 0AAh         ; AL = 1010 1010b
+    XOR  al, 0FFh         ; AL = 55h (inversion de todos los bits)
+    XOR  bx, bx           ; BX = 0 (2 bytes frente a los 3 de MOV bx, 0)
+    MOV  al, 0B7h
+    TEST al, 01h          ; ZF = 0 porque el bit 0 vale 1; AL no cambia
+    MOV  al, 08h          ; AL = 8
+    SHL  al, 2            ; AL = 8 << 2 = 20h
+    SHR  al, 1            ; AL = 20h >> 1 = 10h
+
+; -- BLOQUE 4: Control de flujo ----------------------------------------------
+    MOV  ax, [valor_a]    ; AX = 45
+    CMP  ax, [valor_b]    ; 45 - 12 = 33 > 0
+    JG   .mayor           ; salta si AX > valor_b (con signo)
+    JE   .igual           ; salta si AX == valor_b
+    XOR  cx, cx           ; caso menor: CX = 0 (no se alcanza con estos datos)
+    JMP  .fin_cmp
+.mayor:
+    MOV  cx, 1            ; CX = 1: valor_a > valor_b
+    JMP  .fin_cmp
+.igual:
+    MOV  cx, 2            ; CX = 2: igualdad
+.fin_cmp:
+    ; Bucle: suma acumulada de 1 a 5 (resultado esperado: 15)
+    XOR  ax, ax           ; AX = 0 (acumulador)
+    MOV  cx, 5            ; CX = contador del bucle
+    MOV  bx, 1            ; BX = primer valor a sumar
+.bucle_suma:
+    ADD  ax, bx           ; AX += BX
+    INC  bx               ; siguiente valor
+    LOOP .bucle_suma      ; CX = CX - 1; repite si CX != 0
+    ; Al terminar: AX = 1 + 2 + 3 + 4 + 5 = 15 (000Fh)
+
     INT  20h              ; retornar a DOS
