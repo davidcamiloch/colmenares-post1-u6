@@ -49,6 +49,17 @@ inicio:
     LOOP .bucle_array
     ; AX = 10 + 20 + 30 + 40 + 50 = 150 (0096h)
 
+    ; Extension: recorrido inverso desde array[4] hasta array[0]
+    XOR  ax, ax
+    MOV  bx, array
+    MOV  cx, 5
+    MOV  si, 8            ; SI = 4 * 2 bytes: ultimo elemento
+.bucle_inverso:
+    ADD  ax, [bx + si]
+    SUB  si, 2            ; retroceder una palabra
+    LOOP .bucle_inverso
+    ; AX = 50 + 40 + 30 + 20 + 10 = 150 (0096h)
+
     ; Campos del registro con desplazamiento fijo desde la base
     MOV  bx, nota1
     MOV  ax, [bx]         ; AX = nota1 = 85
