@@ -78,4 +78,14 @@ inicio:
     LOOP .bucle_suma      ; CX = CX - 1; repite si CX != 0
     ; Al terminar: AX = 1 + 2 + 3 + 4 + 5 = 15 (000Fh)
 
+    ; Variante: factorial de 5 con MUL (resultado esperado: 120)
+    MOV  ax, 1            ; AX = 1 (acumulador del producto)
+    MOV  cx, 5            ; CX = 5 iteraciones
+    MOV  bx, 1            ; BX = primer factor
+.bucle_fact:
+    MUL  bx               ; DX:AX = AX * BX
+    INC  bx               ; siguiente factor
+    LOOP .bucle_fact
+    ; Al terminar: AX = 1 * 2 * 3 * 4 * 5 = 120 (0078h), DX = 0
+
     INT  20h              ; retornar a DOS
